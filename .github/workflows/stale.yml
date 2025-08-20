@@ -1,0 +1,97 @@
+name: Stale Bot - comment trigger
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  check-comment:
+    runs-on: ubuntu-latest
+    if: contains(github.event.comment.body, '/stale')
+    outputs:
+      should-run: ${{ steps.check-permission.outputs.result }}
+    steps:
+      - name: check comment permissions
+        id: check-permission
+        uses: actions/github-script@v7
+        with:
+          result-encoding: string
+          script: |
+            const { data: collaborators } = await github.rest.repos.listCollaborators({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+            
+            const user = context.payload.comment.user.login;
+            const isCollaborator = collaborators.some(collab => collab.login === user);
+            
+            if (!isCollaborator) {
+              await github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: `@${user} Sorry, only repository collaborators can trigger stale bot.`
+              });
+              return 'false';
+            }
+            return 'true';
+
+  stale:
+    runs-on: ubuntu-latest
+    needs: check-comment
+    if: needs.check-comment.outputs.should-run == 'true'
+    steps:
+      - name: run stale Bot
+        uses: actions/stale@v9
+        with:
+          # basic configurations
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          days-before-stale: 7
+          days-before-close: 1
+          
+          # Issue configurations
+          stale-issue-message: |
+            This issue has been inactive for 7 days.
+            
+            If this issue is still relevant, please add a comment to keep it active, otherwise it will be automatically closed in 1 days.
+            
+            Thank you for your contribution to the Rainbond project! 🙏
+          close-issue-message: |
+            This issue has been automatically closed due to inactivity.
+            
+            If the issue still exists, please reopen or create a new issue.
+          stale-issue-label: 'stale'
+          
+          # PR configurations
+          stale-pr-message: |
+            This PR has been inactive for 7 days.
+            
+            If these changes are still relevant, please add a comment to keep them active, otherwise they will be automatically closed in 1 days.
+            
+            Thank you for your contribution to the Rainbond project! 🙏
+          close-pr-message: |
+            This PR has been automatically closed due to inactivity.
+            
+            If the changes are still relevant, please reopen or create a new PR.
+          stale-pr-label: 'stale'
+          
+          # exclude milestones
+          exempt-all-milestones: true
+          
+          # only remove stale label (when there is new activity)
+          remove-stale-when-updated: true
+          
+          # operation limit (to prevent too many operations at once)
+          operations-per-run: 100
+          
+          # exclude draft PR
+          exempt-draft-pr: true
+          
+          # other configurations
+          ascending: true
+          delete-branch: false
+
