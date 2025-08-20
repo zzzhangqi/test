@@ -49,7 +49,7 @@ jobs:
     if: github.event_name == 'issue_comment' && needs.check-comment.outputs.should-run == 'true'
     steps:
       - name: Mark current issue/PR as stale
-        uses: actions/github-script@v7
+        uses: actions/stale@v9
         with:
           script: |
             const issueNumber = context.issue.number;
