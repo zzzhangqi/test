@@ -6,34 +6,55 @@ on:
   pull_request:
     types: [labeled]
   schedule:
-    # 每分钟检查一次需要关闭的 stale items
-    - cron: '* * * * *'
+    # 每小时检查一次需要关闭的 stale items
+    - cron: '0 * * * *'
 
 permissions:
   issues: write
   pull-requests: write
 
 jobs:
-  stale-bot:
+  send-stale-message:
     runs-on: ubuntu-latest
+    if: github.event.label.name == 'stale'
     steps:
-      - name: Run stale Bot
-        uses: actions/stale@v9
+      - name: Send stale message
+        uses: actions/github-script@v7
         with:
-          # basic configurations
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          days-before-stale: 0
-          days-before-close: 1
-          
-          # Issue configurations
-          stale-issue-message: |
-            This issue has been marked as stale because it has been inactive.
+          script: |
+            const issueNumber = context.payload.number;
+            const isPR = !!context.payload.pull_request;
+            const itemType = isPR ? 'PR' : 'issue';
+            
+            // 添加 stale 消息
+            const staleMessage = `This ${itemType} has been marked as stale because it has been inactive.
             
             It will be automatically closed in 1 day unless there is new activity.
             
             If this is still relevant, please add a comment to keep it active.
             
-            Thank you for your contribution to the Rainbond project! 🙏
+            Thank you for your contribution to the Rainbond project! 🙏`;
+            
+            await github.rest.issues.createComment({
+              issue_number: issueNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: staleMessage
+            });
+
+  scheduled-stale-check:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    steps:
+      - name: Run scheduled stale check
+        uses: actions/stale@v9
+        with:
+          # basic configurations
+          days-before-stale: -1
+          days-before-close: 1
+          
+          # Issue configurations
+          stale-issue-message: ''
           close-issue-message: |
             This issue has been automatically closed due to inactivity.
             
@@ -41,14 +62,7 @@ jobs:
           stale-issue-label: 'stale'
           
           # PR configurations  
-          stale-pr-message: |
-            This PR has been marked as stale because it has been inactive.
-            
-            It will be automatically closed in 1 day unless there is new activity.
-            
-            If this is still relevant, please add a comment to keep it active.
-            
-            Thank you for your contribution to the Rainbond project! 🙏
+          stale-pr-message: ''
           close-pr-message: |
             This PR has been automatically closed due to inactivity.
             
