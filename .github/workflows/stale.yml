@@ -22,9 +22,15 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const issueNumber = context.payload.number;
+            // 获取正确的 issue/PR 编号
+            const issueNumber = context.payload.issue?.number || context.payload.pull_request?.number;
             const isPR = !!context.payload.pull_request;
             const itemType = isPR ? 'PR' : 'issue';
+            
+            if (!issueNumber) {
+              console.error('Could not determine issue/PR number');
+              return;
+            }
             
             // 添加 stale 消息
             const staleMessage = `This ${itemType} has been marked as stale because it has been inactive.
