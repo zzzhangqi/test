@@ -1,73 +1,22 @@
-name: Stale Bot - comment trigger
+name: Stale Bot
 
 on:
-  issue_comment:
-    types: [created]
+  issues:
+    types: [labeled]
+  pull_request:
+    types: [labeled]
   schedule:
-    # 每小时检查一次需要关闭的 stale items
-    - cron: '0 * * * *'
+    # 每分钟检查一次需要关闭的 stale items
+    - cron: '* * * * *'
 
 permissions:
   issues: write
   pull-requests: write
 
 jobs:
-  check-comment:
+  stale-bot:
     runs-on: ubuntu-latest
-    if: contains(github.event.comment.body, '/stale')
-    outputs:
-      should-run: ${{ steps.check-permission.outputs.result }}
     steps:
-      - name: check comment permissions
-        id: check-permission
-        uses: actions/github-script@v7
-        with:
-          result-encoding: string
-          script: |
-            const { data: collaborators } = await github.rest.repos.listCollaborators({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-            });
-            
-            const user = context.payload.comment.user.login;
-            const isCollaborator = collaborators.some(collab => collab.login === user);
-            
-            if (!isCollaborator) {
-              await github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: `@${user} Sorry, only repository collaborators can trigger stale bot.`
-              });
-              return 'false';
-            }
-            return 'true';
-
-  run-stale:
-    runs-on: ubuntu-latest
-    needs: check-comment
-    if: needs.check-comment.outputs.should-run == 'true'
-    steps:
-      - name: Add trigger label and run stale Bot
-        uses: actions/github-script@v7
-        with:
-          script: |
-            // 给当前 issue/PR 添加触发标签，让 stale bot 能识别
-            await github.rest.issues.addLabels({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              labels: ['manual-stale-trigger']
-            });
-            
-            // 给触发评论添加反应
-            await github.rest.reactions.createForIssueComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              comment_id: context.payload.comment.id,
-              content: '+1'
-            });
-
       - name: Run stale Bot
         uses: actions/stale@v9
         with:
@@ -82,7 +31,7 @@ jobs:
             
             It will be automatically closed in 1 day unless there is new activity.
             
-            If this issue is still relevant, please add a comment to keep it active.
+            If this is still relevant, please add a comment to keep it active.
             
             Thank you for your contribution to the Rainbond project! 🙏
           close-issue-message: |
@@ -97,7 +46,7 @@ jobs:
             
             It will be automatically closed in 1 day unless there is new activity.
             
-            If these changes are still relevant, please add a comment to keep them active.
+            If this is still relevant, please add a comment to keep it active.
             
             Thank you for your contribution to the Rainbond project! 🙏
           close-pr-message: |
@@ -106,68 +55,8 @@ jobs:
             If the changes are still relevant, please reopen or create a new PR.
           stale-pr-label: 'stale'
           
-          # 只处理带有触发标签的 issue/PR
-          only-labels: 'manual-stale-trigger'
-          
-          # exclude milestones
-          exempt-all-milestones: true
-          
-          # only remove stale label (when there is new activity)
-          remove-stale-when-updated: true
-          
-          # operation limit
-          operations-per-run: 10
-          
-          # exclude draft PR
-          exempt-draft-pr: true
-          
-          # other configurations
-          ascending: true
-          delete-branch: false
-
-      - name: Remove trigger label after processing
-        uses: actions/github-script@v7
-        with:
-          script: |
-            // 移除触发标签，避免重复处理
-            try {
-              await github.rest.issues.removeLabel({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                name: 'manual-stale-trigger'
-              });
-            } catch (error) {
-              console.log('Trigger label may have already been removed');
-            }
-
-  scheduled-stale-check:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'schedule'
-    steps:
-      - name: Run scheduled stale check
-        uses: actions/stale@v9
-        with:
-          # basic configurations
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          days-before-stale: 0
-          days-before-close: 1
-          
-          # Issue configurations
-          stale-issue-message: ''
-          close-issue-message: |
-            This issue has been automatically closed due to inactivity.
-            
-            If the issue still exists, please reopen or create a new issue.
-          stale-issue-label: 'stale'
-          
-          # PR configurations  
-          stale-pr-message: ''
-          close-pr-message: |
-            This PR has been automatically closed due to inactivity.
-            
-            If the changes are still relevant, please reopen or create a new PR.
-          stale-pr-label: 'stale'
+          # 只处理已经有 stale 标签的项目
+          only-labels: 'stale'
           
           # exclude milestones
           exempt-all-milestones: true
